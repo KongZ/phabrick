@@ -44,9 +44,9 @@ type ManiphestQueryResponse struct {
 
 // ManiphestTransactionResponse a Maniphest Transaction response
 type ManiphestTransactionResponse struct {
-	Result    map[string]TransactionResponse `json:"result"`
-	ErrorCode string                         `json:"error_code"`
-	ErrorInfo string                         `json:"error_info"`
+	Result    map[string][]TransactionResponse `json:"result"`
+	ErrorCode string                           `json:"error_code"`
+	ErrorInfo string                           `json:"error_info"`
 }
 
 // TransactionResponse a Transaction response
@@ -91,7 +91,7 @@ func (conduit *Conduit) QueryManiphest(phids []string) (resp []ManiphestResponse
 }
 
 // GetTransactions maniphests task transaction from a task id
-func (conduit *Conduit) GetTransactions(taskIds []string) (resp []TransactionResponse, err error) {
+func (conduit *Conduit) GetTransactions(taskIds []string) (resp map[string][]TransactionResponse, err error) {
 	body := url.Values{}
 	for i, phid := range taskIds {
 		body.Add(fmt.Sprintf("ids[%d]", i), phid)
@@ -117,9 +117,5 @@ func (conduit *Conduit) GetTransactions(taskIds []string) (resp []TransactionRes
 	if len(resBody.Result) == 0 {
 		return nil, errors.New("Empty result")
 	}
-	values := make([]TransactionResponse, 0, len(resBody.Result))
-	for _, val := range resBody.Result {
-		values = append(values, val)
-	}
-	return values, nil
+	return resBody.Result, nil
 }

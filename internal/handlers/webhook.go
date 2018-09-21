@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -77,7 +78,6 @@ func (webhook *Webhook) receiveNotify(w http.ResponseWriter, r *http.Request) {
 						}
 						if len(maniphests) > 0 {
 							task = maniphests[0]
-							log.Printf("%#v", task)
 							// project
 							wg.Add(1)
 							go func() {
@@ -90,32 +90,35 @@ func (webhook *Webhook) receiveNotify(w http.ResponseWriter, r *http.Request) {
 								}
 							}()
 							// transactions
-							wg.Add(1)
-							go func() {
-								defer wg.Done()
-								transactions, err := con.GetTransactions([]string{maniphests[0].ID})
-								if err == nil {
-									for _, tran := range transactions {
-										if tran.TransactionPHID == webhookReq.Transactions[0].Phid {
-											transaction = tran
-											// actor
-											wg.Add(1)
-											go func() {
-												defer wg.Done()
-												users, err := con.QueryUser([]string{transaction.AuthorPHID})
-												if err == nil {
-													actor = users[0]
-												} else {
-													log.Errorf("Error while quering PHID %s, %v", transaction.AuthorPHID, err)
-												}
-											}()
-											break
+							if len(webhookReq.Transactions) > 0 {
+								wg.Add(1)
+								go func() {
+									defer wg.Done()
+									transactions, err := con.GetTransactions([]string{task.ID})
+									if err == nil {
+										trans := transactions[task.ID]
+										for _, tran := range trans {
+											if tran.TransactionPHID == webhookReq.Transactions[0].Phid {
+												transaction = tran
+												// actor
+												wg.Add(1)
+												go func() {
+													defer wg.Done()
+													users, err := con.QueryUser([]string{transaction.AuthorPHID})
+													if err == nil {
+														actor = users[0]
+													} else {
+														log.Errorf("Error while quering PHID %s, %v", transaction.AuthorPHID, err)
+													}
+												}()
+												break
+											}
 										}
+									} else {
+										log.Errorf("Error while quering maniphest ID %v, %v", maniphests[0].ID, err)
 									}
-								} else {
-									log.Errorf("Error while quering maniphest ID %v, %v", maniphests[0].ID, err)
-								}
-							}()
+								}()
+							}
 							// assignee
 							wg.Add(1)
 							go func() {
@@ -138,10 +141,10 @@ func (webhook *Webhook) receiveNotify(w http.ResponseWriter, r *http.Request) {
 					channelID = webhook.Config.Channels.Projects["default"]
 				}
 				if channelID == "" {
-					log.Infof("No channel found for project %s", project.ID)
+					log.Infof("[%s] No channel found for project %s", task.ID, project.ID)
 					return
 				}
-				log.Infof("Sending message to %s", channelID)
+				log.Debugf("Sending message to %s", channelID)
 				fields := []slack.AttachmentField{}
 				if webhook.Config.Slack.ShowAssignee {
 					fields = append(fields, slack.AttachmentField{
@@ -165,10 +168,10 @@ func (webhook *Webhook) receiveNotify(w http.ResponseWriter, r *http.Request) {
 				var action string
 				switch transaction.TransactionType {
 				case "status":
-					action = fmt.Sprintf("has been %s by %s", transaction.NewValue, actor.UserName)
+					action = fmt.Sprintf("has been `%s` by %s", transaction.NewValue, actor.UserName)
 					break
 				case "core:comment":
-					action = fmt.Sprintf("%s add a comment", actor.UserName)
+					action = fmt.Sprintf("%s added a comment", actor.UserName)
 					fields = append(fields, slack.AttachmentField{
 						Title: "Comment",
 						Value: transaction.Comments,
@@ -176,7 +179,7 @@ func (webhook *Webhook) receiveNotify(w http.ResponseWriter, r *http.Request) {
 					})
 					break
 				case "description":
-					action = fmt.Sprintf("%s update description", actor.UserName)
+					action = fmt.Sprintf("%s updated description", actor.UserName)
 					fields = append(fields, slack.AttachmentField{
 						Title: "Description",
 						Value: transaction.NewValue,
@@ -184,10 +187,10 @@ func (webhook *Webhook) receiveNotify(w http.ResponseWriter, r *http.Request) {
 					})
 					break
 				case "core:subscribers":
-					action = fmt.Sprintf("%s add subscribers", actor.UserName)
+					action = fmt.Sprintf("%s added subscribers", actor.UserName)
 					break
 				case "reassign":
-					action = fmt.Sprintf("%s assign task to %s", actor.UserName, assignee.UserName)
+					action = fmt.Sprintf("%s assigned task to %s", actor.UserName, assignee.UserName)
 					break
 				case "core:create":
 					action = fmt.Sprintf("was created by %s", actor.UserName)
@@ -195,17 +198,18 @@ func (webhook *Webhook) receiveNotify(w http.ResponseWriter, r *http.Request) {
 				}
 				params := slack.PostMessageParameters{}
 				attachment := slack.Attachment{
-					AuthorName: task.Title,
+					AuthorName: fmt.Sprintf("[%s] %s", task.ObjectName, task.Title),
 					AuthorLink: task.URI,
 					Text:       action,
 					Fields:     fields,
-					Footer:     project.Name,
+					Footer:     fmt.Sprintf("<%s/project/profile/%s|on %s>", webhook.Config.Phabricator.URL, project.ID, project.Name),
+					Ts:         json.Number(strconv.FormatInt(time.Now().Unix(), 10)),
 					FooterIcon: "https://raw.githubusercontent.com/phacility/phabricator/master/webroot/rsrc/favicons/favicon-16x16.png",
 				}
 				params.Attachments = []slack.Attachment{attachment}
 				params.Username = webhook.Config.Slack.Username
 				params.ThreadTimestamp = fmt.Sprintf("%d", time.Now().Unix())
-				channelID, timestamp, err := slackAPI.PostMessage(channelID, task.Title, params)
+				channelID, timestamp, err := slackAPI.PostMessage(channelID, "", params)
 				if err != nil {
 					log.Errorf("%s\n", err)
 					return

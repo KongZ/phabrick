@@ -13,7 +13,7 @@ import (
 )
 
 // Release a server version
-const Release = "0.1"
+const Release = "0.1.2"
 
 func init() {
 	lvl, ok := os.LookupEnv("LOG_LEVEL")
