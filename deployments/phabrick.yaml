@@ -1,0 +1,14 @@
+slack:
+  token: 
+  username: 
+  showAssignee: false
+  showAuthor: false
+phabricator:
+  url: 
+  token: 
+channels:
+  objectTypes: 
+    - "TASK"
+  projects:
+    1: "@siri"
+    default: "#logs"
