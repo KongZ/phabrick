@@ -11,28 +11,25 @@ import (
 
 // ManiphestResponse a Maniphest response
 type ManiphestResponse struct {
-	ID            string   `json:"id"`
-	Phid          string   `json:"phid"`
-	AuthorPHID    string   `json:"authorPHID"`
-	OwnerPHID     string   `json:"ownerPHID"`
-	CcPHIDs       []string `json:"ccPHIDs"`
-	Status        string   `json:"status"`
-	StatusName    string   `json:"statusName"`
-	IsClosed      bool     `json:"isClosed"`
-	Priority      string   `json:"priority"`
-	PriorityColor string   `json:"priorityColor"`
-	Title         string   `json:"title"`
-	Description   string   `json:"description"`
-	ProjectPHIDs  []string `json:"projectPHIDs"`
-	URI           string   `json:"uri"`
-	Auxiliary     struct {
-		StdManiphestOmiseEstimatedHours interface{} `json:"std:maniphest:omise.estimated-hours"`
-		StdManiphestOmiseActualHours    interface{} `json:"std:maniphest:omise.actual-hours"`
-	} `json:"auxiliary"`
-	ObjectName         string   `json:"objectName"`
-	DateCreated        string   `json:"dateCreated"`
-	DateModified       string   `json:"dateModified"`
-	DependsOnTaskPHIDs []string `json:"dependsOnTaskPHIDs"`
+	ID                 string      `json:"id"`
+	Phid               string      `json:"phid"`
+	AuthorPHID         string      `json:"authorPHID"`
+	OwnerPHID          string      `json:"ownerPHID"`
+	CcPHIDs            []string    `json:"ccPHIDs"`
+	Status             string      `json:"status"`
+	StatusName         string      `json:"statusName"`
+	IsClosed           bool        `json:"isClosed"`
+	Priority           string      `json:"priority"`
+	PriorityColor      string      `json:"priorityColor"`
+	Title              string      `json:"title"`
+	Description        string      `json:"description"`
+	ProjectPHIDs       []string    `json:"projectPHIDs"`
+	URI                string      `json:"uri"`
+	Auxiliary          interface{} `json:"auxiliary"`
+	ObjectName         string      `json:"objectName"`
+	DateCreated        string      `json:"dateCreated"`
+	DateModified       string      `json:"dateModified"`
+	DependsOnTaskPHIDs []string    `json:"dependsOnTaskPHIDs"`
 }
 
 // ManiphestQueryResponse a Query response

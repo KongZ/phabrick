@@ -1,0 +1,120 @@
+config: {}
+
+## Docker image
+##
+image: "KongZ/phabrick"
+
+## Global imagePullPolicy
+## Default: 'Always' if image tag is 'latest', else 'IfNotPresent'
+## Ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
+##
+imagePullPolicy: "Always"
+
+## The strategy used to replace old Pods by new ones.
+## Ref https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#strategy
+##
+updateStrategy: "RollingUpdate"
+
+## Pod annotations
+##
+podAnnotations: {}
+
+## Node labels, tolerations, and affinities for pod assignment
+## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
+## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#taints-and-tolerations-beta-feature
+## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+##
+nodeSelector: {}
+affinity: {}
+tolerations: {}
+
+## replicas number
+##
+replicas: 1
+
+## Pod termination grace period
+## Default: 30s
+##
+terminationGracePeriodSeconds: 30
+
+## target port
+##
+port: 8000
+
+## resource requests and limits
+## Ref: http://kubernetes.io/docs/user-guide/compute-resources/
+##
+resources:
+  # limits:
+  #   cpu: 500m
+  #   memory: 512Mi
+  requests:
+    cpu: 10m
+    memory: 30Mi
+
+## service
+service:
+  ##  service annotations
+  ##
+  annotations: {}
+  type: ClusterIP
+  port: 8000
+
+ingress:
+  enabled: false
+  annotations: {}
+  hosts: []
+  tls: []
+    # - hosts:
+    #     - secure.phabricator.com/
+
+networkPolicy:
+  enabled: false
+  egress:
+    ## Allow DNS egress traffic
+    - to:
+      - namespaceSelector:
+          matchLabels:
+            name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+
+  ## allow all ingress traffic
+  ##
+  ingress:
+    - {}
+  ## denied all ingress traffic
+  ##
+  # ingress: []
+  ## allow all ingress traffice with specific app label
+  ##
+  # ingress:
+  #   - from:
+  #       - namespaceSelector: {}
+  #       - podSelector:
+  #           matchLabels:
+  #             app: interfaces-api
+  ## allow all external traffic to port 8080
+  ##
+  # ingress:
+  #   - ports:
+  #     - port: 8080
+  #     from: []
+
+phabrick:
+  slack:
+    token: xoxb-xxxxxxxxx-yyyyyyyyyyy-A4htTAN9xAvPdSaWiP7GxS3x
+    username: phabrick
+    showAssignee: false
+    showAuthor: false
+  phabricator:
+    url: https://secure.phabricator.com
+    token: api-xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  channels:
+    objectTypes: 
+      - 'TASK'
+    projects:
+      default: ""
+      1: '#devops'
+      2: '#developers'

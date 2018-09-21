@@ -1,0 +1,11 @@
+name: phabrick
+version: 0.1.0
+description: A Slack Bot for Phabriacktor
+home: https://github.com/KongZ/phabrick
+icon: https://raw.githubusercontent.com/phacility/phabricator/master/webroot/rsrc/favicons/favicon-16x16.png
+sources:
+  - https://github.com/KongZ/phabrick
+maintainers:
+  - name: KongZ
+    email: goonohc@gmail.com
+engine: gotpl

@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "phabrick.fullname" . }}
+  labels:
+    app: {{ template "phabrick.name" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    heritage: "{{ .Release.Service }}"
+    release: "{{ .Release.Name }}"
+spec:
+  replicas: {{ default 1 .Values.replicas }}
+  strategy:
+    type: {{ .Values.updateStrategy }}
+  selector:
+    matchLabels:
+      app: {{ template "phabrick.name" . }}
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "phabrick.name" . }}
+        release: "{{ .Release.Name }}"
+    {{- if .Values.podAnnotations }}
+      annotations:
+      {{- range $key, $value := .Values.podAnnotations }}
+        {{ $key }}: {{ $value | quote }}
+      {{- end }}
+    {{- end }}
+    spec:
+      {{- if .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.nodeSelector | indent 8 }}
+      {{- end }}
+      {{- if .Values.affinity }}
+      affinity:
+{{ toYaml .Values.affinity | indent 8 }}
+      {{- end }}
+      {{- if .Values.tolerations }}
+      tolerations:
+{{ toYaml .Values.tolerations | indent 8 }}
+      {{- end }}
+      containers:
+        - name: "{{ template "phabrick.name" . }}"
+          image: "{{ .Values.image }}"
+          imagePullPolicy: {{ default "IfNotPresent" .Values.imagePullPolicy }}
+          env:
+            - name: "PORT"
+              value: "{{ default 8000 .Values.port }}"
+            - name: "CONFIG"
+              value: "/conf/phabrick.yaml"
+            - name: "LOG_LEVEL"
+              value: "info"
+          {{- if .Values.config }}
+            {{- range $key, $val := .Values.config }}
+            - name: {{  $key | quote | upper }}
+              value: {{ $val | quote }}
+            {{- end }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ default 8000 .Values.port }}
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+          ## We dont' check HTTP liveness cause both service are run in single container and died together
+          livenessProbe:
+            httpGet:
+              path: "/version"
+              port: {{ default 8000 .Values.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 1
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: "/version"
+              port: {{ default 8000 .Values.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 1
+            successThreshold: 1
+            failureThreshold: 3
+          volumeMounts:
+            - name: config-volume
+              mountPath: /conf
+      terminationGracePeriodSeconds: {{ default 30 .Values.terminationGracePeriodSeconds }}
+      volumes:
+        - name: config-volume
+          configMap:
+            name: phabrick
+            items:
+              - key: phabrick.yaml
+                path: phabrick.yaml
