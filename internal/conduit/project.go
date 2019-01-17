@@ -12,8 +12,8 @@ import (
 // ProjectQueryResponse a Query response
 type ProjectQueryResponse struct {
 	Result struct {
-		Data    DataResponse  `json:"data"`
-		SlugMap []interface{} `json:"slugMap"`
+		Data    ProjectDataResponse `json:"data"`
+		SlugMap []interface{}       `json:"slugMap"`
 		Cursor  struct {
 			Limit  int         `json:"limit"`
 			After  interface{} `json:"after"`
@@ -38,8 +38,8 @@ type ProjectResponse struct {
 	DateModified     string   `json:"dateModified"`
 }
 
-// DataResponse a Query response
-type DataResponse map[string]ProjectResponse
+// ProjectDataResponse a Query response
+type ProjectDataResponse map[string]ProjectResponse
 
 // QueryProject projects from a list of PHID
 func (conduit *Conduit) QueryProject(phids []string) (resp []ProjectResponse, err error) {
@@ -47,10 +47,10 @@ func (conduit *Conduit) QueryProject(phids []string) (resp []ProjectResponse, er
 	for i, phid := range phids {
 		body.Add(fmt.Sprintf("phids[%d]", i), phid)
 	}
-	log.Debugf("project.query -d %v", body)
-	res, err := conduit.post("project.query", body)
-	if err != nil {
-		return nil, err
+	log.Debugf("project.query -d %+v", body)
+	res, e := conduit.post("project.query", body)
+	if e != nil {
+		return nil, e
 	}
 
 	defer res.Body.Close()

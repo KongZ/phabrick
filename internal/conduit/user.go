@@ -32,7 +32,7 @@ func (conduit *Conduit) QueryUser(phids []string) (resp []UserResponse, err erro
 	for i, phid := range phids {
 		body.Add(fmt.Sprintf("phids[%d]", i), phid)
 	}
-	log.Debugf("user.query -d %v", body)
+	log.Debugf("user.query -d %+v", body)
 	res, err := conduit.post("user.query", body)
 	if err != nil {
 		return nil, err

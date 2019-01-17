@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -57,12 +58,13 @@ func (webhook *Webhook) receiveNotify(w http.ResponseWriter, r *http.Request) {
 			log.Errorf("Invalid request from webhook, %v", err)
 		}
 		log.Printf("Received %v", webhookReq.Object)
+		log.Debugf("%+v", webhookReq)
 		for _, objectType := range webhook.Config.Channels.ObjectTypes {
 			if webhookReq.Object.Type == objectType {
 				var task conduit.ManiphestResponse
 				var assignee conduit.UserResponse
 				var project conduit.ProjectResponse
-				var transaction conduit.TransactionResponse
+				var transactions []conduit.TransactionResponse
 				var actor conduit.UserResponse
 				var wg sync.WaitGroup
 				wg.Add(1)
@@ -94,21 +96,20 @@ func (webhook *Webhook) receiveNotify(w http.ResponseWriter, r *http.Request) {
 								wg.Add(1)
 								go func() {
 									defer wg.Done()
-									transactions, err := con.GetTransactions([]string{task.ID})
+									taskTransactions, err := con.GetTransactions([]string{task.ID})
 									if err == nil {
-										trans := transactions[task.ID]
-										for _, tran := range trans {
+										transactions = taskTransactions[task.ID]
+										for _, tran := range transactions {
 											if tran.TransactionPHID == webhookReq.Transactions[0].Phid {
-												transaction = tran
 												// actor
 												wg.Add(1)
 												go func() {
 													defer wg.Done()
-													users, err := con.QueryUser([]string{transaction.AuthorPHID})
+													users, err := con.QueryUser([]string{tran.AuthorPHID})
 													if err == nil {
 														actor = users[0]
 													} else {
-														log.Errorf("Error while quering PHID %s, %v", transaction.AuthorPHID, err)
+														log.Errorf("Error while quering PHID %s, %v", tran.AuthorPHID, err)
 													}
 												}()
 												break
@@ -135,16 +136,6 @@ func (webhook *Webhook) receiveNotify(w http.ResponseWriter, r *http.Request) {
 				}
 				// merge
 				wg.Wait()
-				slackAPI := slack.New(webhook.Config.Slack.Token)
-				channelID, ok := webhook.Config.Channels.Projects[project.ID]
-				if !ok {
-					channelID = webhook.Config.Channels.Projects["default"]
-				}
-				if channelID == "" {
-					log.Infof("[%s] No channel found for project %s", task.ID, project.ID)
-					return
-				}
-				log.Debugf("Sending message to %s", channelID)
 				fields := []slack.AttachmentField{}
 				if webhook.Config.Slack.ShowAssignee {
 					fields = append(fields, slack.AttachmentField{
@@ -165,56 +156,96 @@ func (webhook *Webhook) receiveNotify(w http.ResponseWriter, r *http.Request) {
 						log.Errorf("Error while quering PHID %s, %v", task.AuthorPHID, err)
 					}
 				}
-				var action string
-				switch transaction.TransactionType {
-				case "status":
-					action = fmt.Sprintf("has been `%s` by %s", transaction.NewValue, actor.UserName)
-					break
-				case "core:comment":
-					action = fmt.Sprintf("%s added a comment", actor.UserName)
-					fields = append(fields, slack.AttachmentField{
-						Title: "Comment",
-						Value: transaction.Comments,
-						Short: false,
-					})
-					break
-				case "description":
-					action = fmt.Sprintf("%s updated description", actor.UserName)
-					fields = append(fields, slack.AttachmentField{
-						Title: "Description",
-						Value: transaction.NewValue,
-						Short: false,
-					})
-					break
-				case "core:subscribers":
-					action = fmt.Sprintf("%s added subscribers", actor.UserName)
-					break
-				case "reassign":
-					action = fmt.Sprintf("%s assigned task to %s", actor.UserName, assignee.UserName)
-					break
-				case "core:create":
-					action = fmt.Sprintf("was created by %s", actor.UserName)
-					break
+				var actions []string
+				if transactions != nil {
+					for _, transaction := range transactions {
+						if transaction.DateCreated == task.DateModified {
+							switch transaction.TransactionType {
+							case "status":
+								actions = append(actions, fmt.Sprintf("has been `%s` by %s ", transaction.NewValue, actor.UserName))
+								break
+							case "core:comment":
+								actions = append(actions, fmt.Sprintf("%s added a comment ", actor.UserName))
+								fields = append(fields, slack.AttachmentField{
+									Title: "Comment",
+									Value: transaction.Comments,
+									Short: false,
+								})
+								break
+							case "description":
+								actions = append(actions, fmt.Sprintf("%s updated description ", actor.UserName))
+								fields = append(fields, slack.AttachmentField{
+									Title: "Description",
+									Value: transaction.NewValue.Description,
+									Short: false,
+								})
+								break
+							case "core:subscribers":
+								subscribers, e := con.QueryUser(transaction.NewValue.Users)
+								if e == nil {
+									actions = append(actions, fmt.Sprintf("%s added %v to subscribers ", subscribers, actor.UserName))
+								} else {
+									actions = append(actions, fmt.Sprintf("%s added subscribers ", actor.UserName))
+								}
+								break
+							case "reassign":
+								actions = append(actions, fmt.Sprintf("%s assigned task to %s ", actor.UserName, assignee.UserName))
+								break
+							case "core:create":
+								actions = append(actions, fmt.Sprintf("was created by %s ", actor.UserName))
+								break
+							case "core:columns":
+								newValueColumn := transaction.NewValue.Column[0]
+								if len(newValueColumn.FromColumnPHIDs) > 0 {
+									var fromColumn string
+									for k := range newValueColumn.FromColumnPHIDs {
+										fromColumn = k
+										break
+									}
+									columns, e := con.QueryColumn([]string{newValueColumn.ColumnPHID, fromColumn})
+									if e == nil {
+										actions = append(actions, fmt.Sprintf("was moved from %s to %s ", columns[0].Name, columns[1].Name))
+									}
+								}
+								break
+							}
+						}
+					}
 				}
-				params := slack.PostMessageParameters{}
-				attachment := slack.Attachment{
-					AuthorName: fmt.Sprintf("[%s] %s", task.ObjectName, task.Title),
-					AuthorLink: task.URI,
-					Text:       action,
-					Fields:     fields,
-					Footer:     fmt.Sprintf("<%s/project/profile/%s|on %s>", webhook.Config.Phabricator.URL, project.ID, project.Name),
-					Ts:         json.Number(strconv.FormatInt(time.Now().Unix(), 10)),
-					FooterIcon: "https://raw.githubusercontent.com/phacility/phabricator/master/webroot/rsrc/favicons/favicon-16x16.png",
+
+				if len(actions) > 0 {
+					slackAPI := slack.New(webhook.Config.Slack.Token)
+					channelID, ok := webhook.Config.Channels.Projects[project.ID]
+					if !ok {
+						channelID = webhook.Config.Channels.Projects["default"]
+					}
+					if channelID == "" {
+						log.Infof("[%s] No channel found for project %s", task.ID, project.ID)
+						return
+					}
+					log.Debugf("Sending message to %s", channelID)
+					attachment := slack.Attachment{
+						AuthorName: fmt.Sprintf("[%s] %s", task.ObjectName, task.Title),
+						AuthorLink: task.URI,
+						Text:       strings.Join(actions, ","),
+						Fields:     fields,
+						Footer:     fmt.Sprintf("<%s/project/profile/%s|on %s>", webhook.Config.Phabricator.URL, project.ID, project.Name),
+						Ts:         json.Number(strconv.FormatInt(time.Now().Unix(), 10)),
+						FooterIcon: "https://raw.githubusercontent.com/phacility/phabricator/master/webroot/rsrc/favicons/favicon-16x16.png",
+					}
+					channelID, timestamp, err := slackAPI.PostMessage(channelID,
+						slack.MsgOptionText("", false),
+						slack.MsgOptionUsername(webhook.Config.Slack.Username),
+						slack.MsgOptionTS(fmt.Sprintf("%d", time.Now().Unix())),
+						slack.MsgOptionAttachments(attachment))
+					if err != nil {
+						log.Errorf("%s\n", err)
+						return
+					}
+					log.Infof("Message successfully sent to channel %s at %s", channelID, timestamp)
+				} else {
+					log.Infoln("No actions are required")
 				}
-				params.Attachments = []slack.Attachment{attachment}
-				params.Username = webhook.Config.Slack.Username
-				params.ThreadTimestamp = fmt.Sprintf("%d", time.Now().Unix())
-				channelID, timestamp, err := slackAPI.PostMessage(channelID, "", params)
-				if err != nil {
-					log.Errorf("%s\n", err)
-					return
-				}
-				log.Infof("Message successfully sent to channel %s at %s", channelID, timestamp)
 			}
 		}
 	} else {

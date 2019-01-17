@@ -1,7 +1,7 @@
 #################
 ## build stage ##
 #################
-FROM golang:1.10-alpine as builder
+FROM golang:1.11-alpine as builder
 LABEL maintainer="KongZ <goonohc@gmail.com>"
 
 RUN apk add --update --no-cache git

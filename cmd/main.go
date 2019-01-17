@@ -13,7 +13,7 @@ import (
 )
 
 // Release a server version
-const Release = "0.1.2"
+const Release = "1.3"
 
 func init() {
 	lvl, ok := os.LookupEnv("LOG_LEVEL")
@@ -24,6 +24,7 @@ func init() {
 		if err != nil {
 			ll = log.InfoLevel
 		}
+		log.Printf("Set logs level to %d [%s]", ll, lvl)
 		// set global log level
 		log.SetLevel(ll)
 	}

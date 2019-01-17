@@ -48,15 +48,41 @@ type ManiphestTransactionResponse struct {
 
 // TransactionResponse a Transaction response
 type TransactionResponse struct {
-	TaskID          string `json:"taskID"`
-	TransactionID   string `json:"transactionID"`
-	TransactionPHID string `json:"transactionPHID"`
-	TransactionType string `json:"transactionType"`
-	OldValue        string `json:"oldValue"`
-	NewValue        string `json:"newValue"`
-	Comments        string `json:"comments"`
-	AuthorPHID      string `json:"authorPHID"`
-	DateCreated     string `json:"dateCreated"`
+	TaskID          string   `json:"taskID"`
+	TransactionID   string   `json:"transactionID"`
+	TransactionPHID string   `json:"transactionPHID"`
+	TransactionType string   `json:"transactionType"`
+	OldValue        string   `json:"oldValue"`
+	NewValue        NewValue `json:"newValue"`
+	Comments        string   `json:"comments"`
+	AuthorPHID      string   `json:"authorPHID"`
+	DateCreated     string   `json:"dateCreated"`
+}
+
+// NewValue possible new value
+type NewValue struct {
+	Description string
+	Users       []string
+	Column      []NewValueColumn
+}
+
+// NewValueColumn a new value for core:columns transaction type
+type NewValueColumn struct {
+	ColumnPHID      string            `json:"columnPHID"`
+	BeforePHID      string            `json:"beforePHID"`
+	BoardPHID       string            `json:"boardPHID"`
+	FromColumnPHIDs map[string]string `json:"fromColumnPHIDs"`
+}
+
+// UnmarshalJSON custom NewValue decoder
+func (v *NewValue) UnmarshalJSON(data []byte) error {
+	if err := json.Unmarshal(data, &v.Column); err == nil {
+		return err
+	}
+	if err := json.Unmarshal(data, &v.Users); err == nil {
+		return err
+	}
+	return json.Unmarshal(data, &v.Description)
 }
 
 // QueryManiphest maniphests from a list of PHID
@@ -65,7 +91,7 @@ func (conduit *Conduit) QueryManiphest(phids []string) (resp []ManiphestResponse
 	for i, phid := range phids {
 		body.Add(fmt.Sprintf("phids[%d]", i), phid)
 	}
-	log.Debugf("maniphest.query -d %v", body)
+	log.Debugf("maniphest.query -d %+v", body)
 	res, err := conduit.post("maniphest.query", body)
 	if err != nil {
 		return nil, err
@@ -93,7 +119,7 @@ func (conduit *Conduit) GetTransactions(taskIds []string) (resp map[string][]Tra
 	for i, phid := range taskIds {
 		body.Add(fmt.Sprintf("ids[%d]", i), phid)
 	}
-	log.Debugf("maniphest.gettasktransactions -d %v", body)
+	log.Debugf("maniphest.gettasktransactions -d %+v", body)
 	res, err := conduit.post("maniphest.gettasktransactions", body)
 	if err != nil {
 		return nil, err
