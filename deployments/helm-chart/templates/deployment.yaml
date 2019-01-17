@@ -48,8 +48,6 @@ spec:
               value: "{{ default 8000 .Values.port }}"
             - name: "CONFIG"
               value: "/conf/phabrick.yaml"
-            - name: "LOG_LEVEL"
-              value: "info"
           {{- if .Values.config }}
             {{- range $key, $val := .Values.config }}
             - name: {{  $key | quote | upper }}

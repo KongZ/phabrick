@@ -1,4 +1,5 @@
-config: {}
+config:
+  LOG_LEVEL: "info"
 
 ## Docker image
 ##
@@ -8,7 +9,7 @@ image: "KongZ/phabrick"
 ## Default: 'Always' if image tag is 'latest', else 'IfNotPresent'
 ## Ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
 ##
-imagePullPolicy: "Always"
+imagePullPolicy: "IfNotPresent"
 
 ## The strategy used to replace old Pods by new ones.
 ## Ref https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#strategy
