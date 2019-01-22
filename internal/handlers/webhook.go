@@ -203,7 +203,7 @@ func (webhook *Webhook) receiveNotify(w http.ResponseWriter, r *http.Request) {
 										break
 									}
 									columns, e := con.QueryColumn([]string{newValueColumn.ColumnPHID, fromColumn})
-									if e == nil {
+									if e == nil && len(columns) == 2 {
 										actions = append(actions, fmt.Sprintf("was moved from %s to %s ", columns[0].Name, columns[1].Name))
 									}
 								}
