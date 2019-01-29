@@ -162,7 +162,7 @@ func (webhook *Webhook) receiveNotify(w http.ResponseWriter, r *http.Request) {
 						if transaction.DateCreated == task.DateModified {
 							switch transaction.TransactionType {
 							case "status":
-								actions = append(actions, fmt.Sprintf("has been `%s` by %s ", transaction.NewValue, actor.UserName))
+								actions = append(actions, fmt.Sprintf("has been `%s` by %s ", transaction.NewValue.Description, actor.UserName))
 								break
 							case "core:comment":
 								actions = append(actions, fmt.Sprintf("%s added a comment ", actor.UserName))
