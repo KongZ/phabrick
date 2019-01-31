@@ -13,6 +13,7 @@ import (
 	"github.com/KongZ/phabrick/internal/config"
 	slack "github.com/nlopes/slack"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/image/colornames"
 )
 
 // WebhookRequest a request object from Phabricator
@@ -162,10 +163,10 @@ func (webhook *Webhook) receiveNotify(w http.ResponseWriter, r *http.Request) {
 						if transaction.DateCreated == task.DateModified {
 							switch transaction.TransactionType {
 							case "status":
-								actions = append(actions, fmt.Sprintf("has been `%s` by %s ", transaction.NewValue.Description, actor.UserName))
+								actions = append(actions, fmt.Sprintf("has been `%s`", transaction.NewValue.Description))
 								break
 							case "core:comment":
-								actions = append(actions, fmt.Sprintf("%s added a comment ", actor.UserName))
+								actions = append(actions, fmt.Sprintf("added a comment"))
 								fields = append(fields, slack.AttachmentField{
 									Title: "Comment",
 									Value: transaction.Comments,
@@ -173,7 +174,6 @@ func (webhook *Webhook) receiveNotify(w http.ResponseWriter, r *http.Request) {
 								})
 								break
 							case "description":
-								actions = append(actions, fmt.Sprintf("%s updated description ", actor.UserName))
 								fields = append(fields, slack.AttachmentField{
 									Title: "Description",
 									Value: transaction.NewValue.Description,
@@ -182,17 +182,15 @@ func (webhook *Webhook) receiveNotify(w http.ResponseWriter, r *http.Request) {
 								break
 							case "core:subscribers":
 								subscribers, e := con.QueryUser(transaction.NewValue.Users)
-								if e == nil {
-									actions = append(actions, fmt.Sprintf("%s added %v to subscribers ", subscribers, actor.UserName))
-								} else {
-									actions = append(actions, fmt.Sprintf("%s added subscribers ", actor.UserName))
+								if e == nil && len(subscribers) > 0 {
+									actions = append(actions, fmt.Sprintf("%v was added to subscribers", subscribers[0].UserName))
 								}
 								break
 							case "reassign":
-								actions = append(actions, fmt.Sprintf("%s assigned task to %s ", actor.UserName, assignee.UserName))
+								actions = append(actions, fmt.Sprintf("task was assigned to %s", assignee.UserName))
 								break
 							case "core:create":
-								actions = append(actions, fmt.Sprintf("was created by %s ", actor.UserName))
+								actions = append(actions, fmt.Sprintf("was created"))
 								break
 							case "core:columns":
 								newValueColumn := transaction.NewValue.Column[0]
@@ -204,7 +202,7 @@ func (webhook *Webhook) receiveNotify(w http.ResponseWriter, r *http.Request) {
 									}
 									columns, e := con.QueryColumn([]string{newValueColumn.ColumnPHID, fromColumn})
 									if e == nil && len(columns) == 2 {
-										actions = append(actions, fmt.Sprintf("was moved from %s to %s ", columns[0].Name, columns[1].Name))
+										actions = append(actions, fmt.Sprintf("moved from %s to %s ", columns[0].Name, columns[1].Name))
 									}
 								}
 								break
@@ -212,7 +210,6 @@ func (webhook *Webhook) receiveNotify(w http.ResponseWriter, r *http.Request) {
 						}
 					}
 				}
-
 				if len(actions) > 0 {
 					slackAPI := slack.New(webhook.Config.Slack.Token)
 					channelID, ok := webhook.Config.Channels.Projects[project.ID]
@@ -225,13 +222,22 @@ func (webhook *Webhook) receiveNotify(w http.ResponseWriter, r *http.Request) {
 					}
 					log.Debugf("Sending message to %s", channelID)
 					attachment := slack.Attachment{
-						AuthorName: fmt.Sprintf("[%s] %s", task.ObjectName, task.Title),
-						AuthorLink: task.URI,
-						Text:       strings.Join(actions, ","),
+						AuthorName: actor.UserName,
+						AuthorIcon: actor.Image,
+						Title:      fmt.Sprintf("[%s] %s", task.ObjectName, task.Title),
+						TitleLink:  task.URI,
+						Text:       strings.Join(actions, ", "),
 						Fields:     fields,
 						Footer:     fmt.Sprintf("<%s/project/profile/%s|on %s>", webhook.Config.Phabricator.URL, project.ID, project.Name),
 						Ts:         json.Number(strconv.FormatInt(time.Now().Unix(), 10)),
 						FooterIcon: "https://raw.githubusercontent.com/phacility/phabricator/master/webroot/rsrc/favicons/favicon-16x16.png",
+					}
+					cn, found := colornames.Map[strings.ToLower(task.PriorityColor)]
+					if found {
+						attachment.Color = fmt.Sprintf("#%02x%02x%02x", cn.R, cn.G, cn.B)
+					}
+					if project.Icon != "" {
+						attachment.FooterIcon = project.Icon
 					}
 					channelID, timestamp, err := slackAPI.PostMessage(channelID,
 						slack.MsgOptionText("", false),
