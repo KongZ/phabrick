@@ -5,10 +5,14 @@ This bot will use the latest API [Herald](https://secure.phabricator.com/herald/
 and send webhooks to the server. The Phabrick server will receive the requests from Herald then
 use Conduit API to query responding detail and send notification to Slack
 
+
+![Slack](https://github.com/KongZ/phabrick/blob/master/assets/slack_message.png)
+
+
 ## Build
 * Uses docker to build the image
 ```
-docker build -t asia.gcr.io/kongz/phabrick:v1.3 -f deployments/Dockerfile .
+docker build -t asia.gcr.io/kongz/phabrick:v1.6 -f deployments/Dockerfile .
 ```
 
 ## Installation
@@ -18,7 +22,6 @@ docker build -t asia.gcr.io/kongz/phabrick:v1.3 -f deployments/Dockerfile .
 * Configure mapping between Phabricator project ID and Slack channels
   * You can use `default` to send all unmatched project ID to this Slack channels
   
-
 ## phabrick.yaml configuration
 
 Example
