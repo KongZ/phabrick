@@ -145,18 +145,18 @@ func (webhook *Webhook) receiveNotify(w http.ResponseWriter, r *http.Request) {
 						Short: true,
 					})
 				}
-				if webhook.Config.Slack.ShowAuthor {
-					users, err := con.QueryUser([]string{task.AuthorPHID})
-					if err == nil {
-						fields = append(fields, slack.AttachmentField{
-							Title: "Author",
-							Value: users[0].UserName,
-							Short: true,
-						})
-					} else {
-						log.Errorf("Error while quering PHID %s, %v", task.AuthorPHID, err)
-					}
-				}
+				// if webhook.Config.Slack.ShowAuthor {
+				// 	users, err := con.QueryUser([]string{task.AuthorPHID})
+				// 	if err == nil {
+				// 		fields = append(fields, slack.AttachmentField{
+				// 			Title: "Author",
+				// 			Value: users[0].UserName,
+				// 			Short: true,
+				// 		})
+				// 	} else {
+				// 		log.Errorf("Error while quering PHID %s, %v", task.AuthorPHID, err)
+				// 	}
+				// }
 				var actions []string
 				if transactions != nil {
 					for _, transaction := range transactions {
@@ -200,7 +200,7 @@ func (webhook *Webhook) receiveNotify(w http.ResponseWriter, r *http.Request) {
 										fromColumn = k
 										break
 									}
-									columns, e := con.QueryColumn([]string{newValueColumn.ColumnPHID, fromColumn})
+									columns, e := con.QueryColumn([]string{fromColumn, newValueColumn.ColumnPHID})
 									if e == nil && len(columns) == 2 {
 										actions = append(actions, fmt.Sprintf("moved from %s to %s ", columns[0].Name, columns[1].Name))
 									}
@@ -222,8 +222,6 @@ func (webhook *Webhook) receiveNotify(w http.ResponseWriter, r *http.Request) {
 					}
 					log.Debugf("Sending message to %s", channelID)
 					attachment := slack.Attachment{
-						AuthorName: actor.UserName,
-						AuthorIcon: actor.Image,
 						Title:      fmt.Sprintf("[%s] %s", task.ObjectName, task.Title),
 						TitleLink:  task.URI,
 						Text:       strings.Join(actions, ", "),
@@ -232,13 +230,18 @@ func (webhook *Webhook) receiveNotify(w http.ResponseWriter, r *http.Request) {
 						Ts:         json.Number(strconv.FormatInt(time.Now().Unix(), 10)),
 						FooterIcon: "https://raw.githubusercontent.com/phacility/phabricator/master/webroot/rsrc/favicons/favicon-16x16.png",
 					}
+					if webhook.Config.Slack.ShowAuthor {
+						attachment.AuthorName = actor.UserName
+						attachment.AuthorIcon = actor.Image
+					}
 					cn, found := colornames.Map[strings.ToLower(task.PriorityColor)]
 					if found {
 						attachment.Color = fmt.Sprintf("#%02x%02x%02x", cn.R, cn.G, cn.B)
 					}
-					if project.Icon != "" {
-						attachment.FooterIcon = project.Icon
-					}
+					// it is not possible to get icon outside Phabricator. `file.info` return a link to HTML
+					// if project.Icon != "" {
+					// 	attachment.FooterIcon = project.Icon
+					// }
 					channelID, timestamp, err := slackAPI.PostMessage(channelID,
 						slack.MsgOptionText("", false),
 						slack.MsgOptionUsername(webhook.Config.Slack.Username),
